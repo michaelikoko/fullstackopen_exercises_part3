@@ -1,24 +1,24 @@
-require("dotenv").config()
-const express = require("express")
+require('dotenv').config()
+const express = require('express')
 const app = express()
 app.use(express.static('build'))
 
 //cors
-const cors = require("cors")
+const cors = require('cors')
 app.use(cors())
 
 //json parser middleware
 app.use(express.json())
 
 //morgan middleware
-const morgan = require("morgan")
-morgan.token('body', function (req, res) { return JSON.stringify(req.body) })
+const morgan = require('morgan')
+morgan.token('body', function (req) { return JSON.stringify(req.body) })
 app.use(morgan(':method :url :status :res[content-length] - :response-time ms :body'))
 
 //MongoDB Person Schema
-const Person = require("./models/person")
+const Person = require('./models/person')
 
-app.get("/info", (request, response) => {
+app.get('/info', (request, response, next) => {
     const date = new Date()
     Person.count({})
         .then(value => {
@@ -28,18 +28,18 @@ app.get("/info", (request, response) => {
 })
 
 //List all phonebook entries
-app.get("/api/persons", (request, response, next) => {
+app.get('/api/persons', (request, response, next) => {
     Person.find({})
-        .then(persons=>{
+        .then(persons => {
             response.json(persons)
         })
         .catch(error => next(error))
 })
 
 //Create a new phonebook entry
-app.post("/api/persons", (request, response, next) => {
+app.post('/api/persons', (request, response, next) => {
     const body = request.body
-/*
+    /*
     if (!body.name) {
         return response.status(400).json({
             error: 'name is missing'
@@ -65,14 +65,14 @@ app.post("/api/persons", (request, response, next) => {
     })
 
     person.save()
-        .then(savedPerson=>{
+        .then(savedPerson => {
             response.json(savedPerson)
         })
         .catch(error => next(error))
 })
 
 //Get a single phonebook entry
-app.get("/api/persons/:id", (request, response, next) => {
+app.get('/api/persons/:id', (request, response, next) => {
     Person.findById(request.params.id)
         .then(person => {
             if (person) {
@@ -84,14 +84,14 @@ app.get("/api/persons/:id", (request, response, next) => {
         .catch(error => next(error))
 })
 
-//Update a phonebook entry 
-app.put("/api/persons/:id", (request, response, next) => {
+//Update a phonebook entry
+app.put('/api/persons/:id', (request, response, next) => {
     const body = request.body
     const person = {
         name: body.name,
         number: body.number
     }
-    Person.findByIdAndUpdate(request.params.id, person, {new: true, runValidators: true})
+    Person.findByIdAndUpdate(request.params.id, person, { new: true, runValidators: true })
         .then(updatedPerson => {
             response.json(updatedPerson)
         })
@@ -101,7 +101,7 @@ app.put("/api/persons/:id", (request, response, next) => {
 //Delete a phonebook entry
 app.delete('/api/persons/:id', (request, response, next) => {
     Person.findByIdAndRemove(request.params.id)
-        .then(result => {
+        .then(() => {
             response.status(204).end()
         })
         .catch(error => next(error))
