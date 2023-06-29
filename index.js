@@ -1,3 +1,4 @@
+require("dotenv").config()
 const express = require("express")
 const app = express()
 app.use(express.static('build'))
@@ -14,69 +15,31 @@ const morgan = require("morgan")
 morgan.token('body', function (req, res) { return JSON.stringify(req.body) })
 app.use(morgan(':method :url :status :res[content-length] - :response-time ms :body'))
 
-let entries = [
-    {
-        "id": 1,
-        "name": "Arto Hellas",
-        "number": "040-123456"
-    },
-    {
-        "id": 2,
-        "name": "Ada Lovelace",
-        "number": "39-44-5323523"
-    },
-    {
-        "id": 3,
-        "name": "Dan Abramov",
-        "number": "12-43-234345"
-    },
-    {
-        "id": 4,
-        "name": "Mary Poppendieck",
-        "number": "39-23-6423122"
-    }
-]
+//MongoDB Person Schema
+const Person = require("./models/person")
 
 app.get("/info", (request, response) => {
     const date = new Date()
-    response.send(`<div>Phonebook has info for ${entries.length} people</div><br/><div>${date}</div>`)
+    Person.count({})
+        .then(value => {
+            response.send(`<div>Phonebook has info for ${value} people</div><br/><div>${date}</div>`)
+        })
+        .catch(error => next(error))
 })
 
-app.get("/api/persons", (request, response) => {
-    response.json(entries)
+//List all phonebook entries
+app.get("/api/persons", (request, response, next) => {
+    Person.find({})
+        .then(persons=>{
+            response.json(persons)
+        })
+        .catch(error => next(error))
 })
 
-app.get("/api/persons/:id", (request, response) => {
-    const id = Number(request.params.id)
-    const entry = entries.find(entry => entry.id === id)
-
-    if (entry) {
-        return response.json(entry)
-    }
-    else {
-        response.status(404).end()
-    }
-})
-
-app.delete('/api/persons/:id', (request, response) => {
-    const id = Number(request.params.id)
-    entries = entries.filter(entry => entry.id !== id)
-
-    response.status(204).end()
-})
-
-const generateId = () => {
-    let randomId
-    do {
-        randomId = Math.floor(Math.random() * 10000000)
-        console.log(randomId)
-    } while (entries.some(entry=>entry.id === randomId))
-    return randomId
-}
-
-app.post('/api/persons', (request, response) => {
+//Create a new phonebook entry
+app.post("/api/persons", (request, response, next) => {
     const body = request.body
-
+/*
     if (!body.name) {
         return response.status(400).json({
             error: 'name is missing'
@@ -86,23 +49,79 @@ app.post('/api/persons', (request, response) => {
         return response.status(400).json({
             error: 'number is missing'
         })
-    }
-    if (entries.some(entry => body.name === entry.name)) {
+    }*/
+    //write if to check if name is unique
+    /*
+        if (entries.some(entry => body.name === entry.name)) {
         return response.status(400).json({
             error: 'name must be unique'
         })
     }
+    */
 
-    const entry = {
+    const person = new Person({
         name: body.name,
-        number: body.number,
-        id: generateId(),
+        number: body.number
+    })
+
+    person.save()
+        .then(savedPerson=>{
+            response.json(savedPerson)
+        })
+        .catch(error => next(error))
+})
+
+//Get a single phonebook entry
+app.get("/api/persons/:id", (request, response, next) => {
+    Person.findById(request.params.id)
+        .then(person => {
+            if (person) {
+                response.json(person)
+            } else {
+                response.status(404).end()
+            }
+        })
+        .catch(error => next(error))
+})
+
+//Update a phonebook entry 
+app.put("/api/persons/:id", (request, response, next) => {
+    const body = request.body
+    const person = {
+        name: body.name,
+        number: body.number
+    }
+    Person.findByIdAndUpdate(request.params.id, person, {new: true, runValidators: true})
+        .then(updatedPerson => {
+            response.json(updatedPerson)
+        })
+        .catch(error => next(error))
+})
+
+//Delete a phonebook entry
+app.delete('/api/persons/:id', (request, response, next) => {
+    Person.findByIdAndRemove(request.params.id)
+        .then(result => {
+            response.status(204).end()
+        })
+        .catch(error => next(error))
+})
+
+
+//Error Handler middleware
+const errorHandler = (error, request, response, next) => {
+    console.error(error.message)
+
+    if (error.name === 'CastError') {
+        return response.status(400).send({ error: 'malformatted id' })
+
+    } else if (error.name === 'ValidationError') {
+        return response.status(400).json({ error: error.message })
     }
 
-    entries = entries.concat(entry)
-
-    response.json(entry)
-})
+    next(error)
+}
+app.use(errorHandler)
 
 const PORT = process.env.PORT || 3001
 app.listen(PORT, () => {
